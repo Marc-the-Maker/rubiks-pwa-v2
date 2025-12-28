@@ -1,106 +1,143 @@
 /* style.css */
-body {
-    margin: 0;
-    overflow: hidden;
-    background-color: #1a1a1a;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none; /* Prevents browser zooming/scrolling */
+
+/* 1. RESET & LOCK VIEWPORT */
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* Removes blue tap box on mobile */
 }
 
-/* The 3D Canvas sits at the back */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000; /* Pure black background */
+    overflow: hidden; /* No scrollbars */
+    position: fixed; /* Locks the page in place on iOS */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none; /* Critical: Tells browser "inputs are for the app, not scrolling" */
+    overscroll-behavior: none; /* Stops the "rubber band" bounce */
+}
+
+/* 2. CANVAS LAYER */
 #canvas-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 1; /* Behind UI */
+    z-index: 1;
     display: block;
+    outline: none;
 }
 
-/* The UI sits on top */
+/* 3. UI LAYER */
 #ui-layer {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10; /* Above Canvas */
-    pointer-events: none; /* Let clicks pass through empty areas to the cube */
+    z-index: 10;
+    pointer-events: none; /* Let touches pass through to canvas */
     display: flex;
     flex-direction: column;
-    justify-content: space-between; /* Pushes top bar up and globe down */
+    justify-content: space-between;
 }
 
-/* Top Button Bar */
+/* 4. BUTTONS (Top Bar) */
 .top-bar {
     width: 100%;
-    padding-top: 20px;
+    height: 80px; /* Give it enough height so buttons aren't cramped */
     display: flex;
-    justify-content: center;
-    gap: 20px;
-    pointer-events: auto; /* Re-enable clicks for buttons */
+    justify-content: space-evenly; /* Equal spacing across width */
+    align-items: center;
+    pointer-events: auto; /* Re-enable clicks */
+    padding-top: env(safe-area-inset-top); /* Respect iPhone Notch area */
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); /* Subtle fade for visibility */
 }
 
 button {
-    background: rgba(255, 255, 255, 0.15); /* Glass effect */
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: white;
-    padding: 15px 30px;
-    border-radius: 30px;
+    /* Modern Look */
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+    
+    /* Size & Shape */
+    padding: 12px 0; /* Vertical padding */
+    width: 120px;    /* Fixed width for consistency */
+    border-radius: 12px;
+    
+    /* Typography */
+    font-size: 16px;
     font-weight: 600;
-    font-size: 1.1rem;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    cursor: pointer;
-    transition: transform 0.1s, background 0.2s;
     text-transform: uppercase;
     letter-spacing: 1px;
+    
+    /* Interaction */
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: transform 0.1s ease, background 0.2s;
 }
 
 button:active {
     transform: scale(0.95);
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.25);
 }
 
-/* The Globe Controller */
+/* 5. GLOBE CONTROLLER (Bottom Right) */
 #globe-control {
     position: absolute;
-    bottom: 40px;
-    right: 30px;
-    width: 100px; /* Bigger size */
-    height: 100px;
-    background: rgba(0, 0, 0, 0.5);
-    border: 2px solid rgba(255, 255, 255, 0.4);
+    bottom: 40px; 
+    right: 20px;
+    
+    /* Larger Size */
+    width: 120px;
+    height: 120px;
+    
+    /* Styling */
+    background: rgba(30, 30, 30, 0.6);
+    border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    pointer-events: auto; /* Catch touches here */
+    
+    /* Flex Center Content */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    
+    /* Text/Icon */
     color: white;
     backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    pointer-events: auto;
     cursor: grab;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    
+    /* iPhone Safe Area */
+    margin-bottom: env(safe-area-inset-bottom);
 }
 
 #globe-control:active {
+    background: rgba(50, 50, 50, 0.8);
+    border-color: rgba(255, 255, 255, 0.8);
     cursor: grabbing;
-    background: rgba(255, 255, 255, 0.2);
-    border-color: #fff;
 }
 
 .globe-icon {
-    font-size: 40px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    font-size: 50px; /* Bigger Icon */
+    line-height: 50px;
+    margin-bottom: 5px;
 }
 
 #globe-control span {
-    font-size: 10px;
-    margin-top: 5px;
-    opacity: 0.8;
+    font-size: 12px;
     text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.8;
 }
