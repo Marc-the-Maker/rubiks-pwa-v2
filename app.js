@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SOLVED_STATE, calculateNewState, updatePhysicalCube } from './cubeLogic.js';
 
 // --- Configuration ---
 const CUBE_SIZE = 1;
@@ -6,8 +7,9 @@ const SPACING = 0.05;
 const SHUFFLE_MOVES = 20; 
 const SHUFFLE_SPEED = 200; 
 
-// Colors: Right, Left, Top, Bottom, Front, Back
-const COLORS = [0xff0000, 0xff8800, 0xffffff, 0xffff00, 0x00ff00, 0x0000ff]; 
+// Colors: Right (Red), Left (Purple), Top (White), Bottom (Yellow), Front (Green), Back (Blue)
+// Changed Left from 0xff8800 (Orange) to 0x800080 (Purple) to match physical ESP32 cube colors.
+const COLORS = [0xff0000, 0x800080, 0xffffff, 0xffff00, 0x00ff00, 0x0000ff]; 
 
 // --- Globals ---
 let scene, camera, renderer;
@@ -22,6 +24,9 @@ let camTheta = Math.PI / 4;
 let camPhi = Math.PI / 4;
 
 let raycaster = new THREE.Raycaster();
+
+// NEW: The physical cube state logic array
+let currentCubeState = [...SOLVED_STATE];
 
 init();
 animate();
@@ -202,7 +207,6 @@ function getZoneId(object, n) {
     return null;
 }
 
-// --- YOUR LOCKED IN LOGIC ---
 function calculateAndQueueMove(start, end) {
     const diff = end - start;
     const face = Math.ceil(start / 9);
@@ -334,11 +338,45 @@ function solveCube() {
     allCubelets.forEach(c => scene.remove(c));
     allCubelets = [];
     createRubiksCube();
+    
+    // --- NEW: Reset tracking array and sync physical cube ---
+    currentCubeState = [...SOLVED_STATE];
+    updatePhysicalCube(currentCubeState);
     console.log("Sent SOLVE to ESP32");
 }
 
 function sendToESP32(axis, index, dir) {
-    console.log(`ESP32 CMD -> Axis:${axis} | Index:${index} | Dir:${dir}`);
+    // Ignore middle slice rotations since physical cube buttons correspond only to outer faces
+    if (index === 0) {
+        console.log("Middle slice moved - no physical mapping available.");
+        return; 
+    }
+
+    let actionName = null;
+
+    // Map Three.js axes to physical cube face colors based on the setup
+    if (axis === 'x') {
+        if (index === 1)  actionName = dir === -1 ? 'RED_CW' : 'RED_CCW';
+        if (index === -1) actionName = dir === 1 ? 'PURPLE_CW' : 'PURPLE_CCW';
+    } 
+    else if (axis === 'y') {
+        if (index === 1)  actionName = dir === -1 ? 'WHITE_CW' : 'WHITE_CCW';
+        if (index === -1) actionName = dir === 1 ? 'YELLOW_CW' : 'YELLOW_CCW';
+    } 
+    else if (axis === 'z') {
+        if (index === 1)  actionName = dir === -1 ? 'GREEN_CW' : 'GREEN_CCW';
+        if (index === -1) actionName = dir === 1 ? 'BLUE_CW' : 'BLUE_CCW';
+    }
+
+    if (actionName) {
+        console.log(`Translating: Axis:${axis} Idx:${index} Dir:${dir} -> Action: ${actionName}`);
+        
+        // Calculate the new 54-LED array
+        currentCubeState = calculateNewState(currentCubeState, actionName);
+        
+        // Fire it off to the ESP32!
+        updatePhysicalCube(currentCubeState);
+    }
 }
 
 function updateCameraPosition() {
