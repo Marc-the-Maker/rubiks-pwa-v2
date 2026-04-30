@@ -10,7 +10,7 @@ export const SOLVED_STATE = [
 ];
 
 // Use WS protocol for WebSockets, port 81 is standard for ESP32 WebSocketsServer
-const ESP32_WS_URL = "ws://192.168.4.1:81"; 
+const ESP32_WS_URL = "ws://192.168.68.112:81"; 
 let espSocket = null;
 
 export const initWebSocket = () => {
