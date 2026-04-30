@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SOLVED_STATE, calculateNewState, initWebSocket, sendStateToESP32 } from './cubeLogic.js';
 
 // --- Configuration ---
 const CUBE_SIZE = 1;
@@ -15,6 +16,9 @@ let allCubelets = [];
 let pivotGroup; 
 let isAnimating = false;
 let moveQueue = []; 
+
+// STATE TRACKING
+let currentPhysicalState = [...SOLVED_STATE];
 
 // Camera State
 let camRadius = 10;
@@ -52,6 +56,9 @@ function init() {
     document.getElementById('btn-solve').addEventListener('click', solveCube);
 
     setupInputHandling();
+    
+    // Initialize connection to ESP32
+    initWebSocket();
 }
 
 function createRubiksCube() {
@@ -202,7 +209,6 @@ function getZoneId(object, n) {
     return null;
 }
 
-// --- YOUR LOCKED IN LOGIC ---
 function calculateAndQueueMove(start, end) {
     const diff = end - start;
     const face = Math.ceil(start / 9);
@@ -212,7 +218,6 @@ function calculateAndQueueMove(start, end) {
 
     let axis, slice, dir; 
 
-    // --- HORIZONTAL SWIPES (+/- 1) ---
     if (Math.abs(diff) === 1) {
         if (Math.floor((start-1)/3) !== Math.floor((end-1)/3)) return false; 
         const d = Math.sign(diff); 
@@ -224,8 +229,6 @@ function calculateAndQueueMove(start, end) {
         if (face === 5) { axis = 'z'; slice = (1-row); dir = -d; }
         if (face === 6) { axis = 'z'; slice = (row-1); dir = d; }
     }
-
-    // --- VERTICAL SWIPES (+/- 3) ---
     else if (Math.abs(diff) === 3) {
         const d = Math.sign(diff); 
 
@@ -255,8 +258,29 @@ function processQueue() {
     triggerRotation(move.axis, move.index, move.dir, move.duration);
 }
 
+// --- MAPPING FUNCTION ---
+// Maps the 3D axis and index to the specific text strings used in your logic file.
+// If your physical cube faces are arranged differently, swap the color strings here.
+function getLogicAction(axis, index, dir) {
+    if (axis === 'y' && index === 1)  return dir > 0 ? 'WHITE_CW' : 'WHITE_CCW';
+    if (axis === 'y' && index === -1) return dir > 0 ? 'YELLOW_CCW' : 'YELLOW_CW'; // Flipped perspective
+    if (axis === 'x' && index === 1)  return dir > 0 ? 'RED_CW' : 'RED_CCW';
+    if (axis === 'x' && index === -1) return dir > 0 ? 'PURPLE_CCW' : 'PURPLE_CW';
+    if (axis === 'z' && index === 1)  return dir > 0 ? 'GREEN_CW' : 'GREEN_CCW';
+    if (axis === 'z' && index === -1) return dir > 0 ? 'BLUE_CCW' : 'BLUE_CW';
+    return null; // Ignore middle slices
+}
+
 function triggerRotation(axis, index, dir, duration) {
     isAnimating = true;
+    
+    // --- UPDATE STATE & ESP32 ---
+    const actionStr = getLogicAction(axis, index, dir);
+    if (actionStr) {
+        currentPhysicalState = calculateNewState(currentPhysicalState, actionStr);
+        sendStateToESP32(currentPhysicalState);
+    }
+    
     const targetCubelets = allCubelets.filter(c => Math.round(c.position[axis]) === index);
 
     pivotGroup.rotation.set(0,0,0);
@@ -288,7 +312,6 @@ function triggerRotation(axis, index, dir, duration) {
         }
     }
     requestAnimationFrame(loop);
-    sendToESP32(axis, index, dir);
 }
 
 function finalizeMove() {
@@ -316,29 +339,29 @@ function finalizeMove() {
 function startShuffle() {
     if(moveQueue.length > 0 || isAnimating) return;
     const axes = ['x', 'y', 'z'];
-    const indices = [-1, 0, 1];
+    const indices = [-1, 1]; // FIX: Changed from [-1, 0, 1] to [-1, 1] to prevent middle slice rotations
     const dirs = [1, -1];
     for(let i = 0; i < SHUFFLE_MOVES; i++) {
-        const rAxis = axes[Math.floor(Math.random() * 3)];
-        const rIdx = indices[Math.floor(Math.random() * 3)];
-        const rDir = dirs[Math.floor(Math.random() * 2)];
+        const rAxis = axes[Math.floor(Math.random() * axes.length)];
+        const rIdx = indices[Math.floor(Math.random() * indices.length)];
+        const rDir = dirs[Math.floor(Math.random() * dirs.length)];
         moveQueue.push({ axis: rAxis, index: rIdx, dir: rDir, duration: SHUFFLE_SPEED });
     }
     processQueue();
 }
 
 function solveCube() {
+    // 1. Reset logic state & Update physical ESP32
+    currentPhysicalState = [...SOLVED_STATE];
+    sendStateToESP32(currentPhysicalState);
+    
+    // 2. Reset 3D Visuals
     moveQueue = [];
     isAnimating = false;
     scene.remove(pivotGroup);
     allCubelets.forEach(c => scene.remove(c));
     allCubelets = [];
     createRubiksCube();
-    console.log("Sent SOLVE to ESP32");
-}
-
-function sendToESP32(axis, index, dir) {
-    console.log(`ESP32 CMD -> Axis:${axis} | Index:${index} | Dir:${dir}`);
 }
 
 function updateCameraPosition() {
